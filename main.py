@@ -33,6 +33,10 @@ class Form(StatesGroup):
     otchestvo = State()
     birthday = State()
     check_info = State()
+    surname_subscribe = State()
+    name_subscribe = State()
+    otchestvo_subscribe = State()
+    subscribe_finish = State()
 
 
 def yes_no_menu():
@@ -107,12 +111,11 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     )
 
 
-# @form_router.message(F.text.casefold() == "Да")
 @form_router.message(F.text.casefold() == "авторизоваться")
 async def request_surname(message: Message, state: FSMContext) -> None:
     await state.set_state(Form.surname)
 
-    await message.reply(
+    await message.answer(
         "Введите свою фамилию",
         reply_markup=ReplyKeyboardRemove(),
     )
@@ -123,12 +126,12 @@ async def request_name(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
         await state.set_state(Form.name)
         await state.update_data(surname=message.text)
-        await message.reply(
+        await message.answer(
             "Отлично, теперь введите ваше имя",
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
-        await message.reply(
+        await message.answer(
             "Таких коротких фамилий не бывает, введите другую",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -139,12 +142,12 @@ async def request_otchestvo(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
         await state.set_state(Form.otchestvo)
         await state.update_data(name=message.text)
-        await message.reply(
+        await message.answer(
             "Отлично, теперь введите ваше отчество",
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
-        await message.reply(
+        await message.answer(
             "Таких коротких имён не бывает, введите другое",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -155,12 +158,12 @@ async def request_birthday(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
         await state.set_state(Form.birthday)
         await state.update_data(otchestvo=message.text)
-        await message.reply(
+        await message.answer(
             "Отлично, теперь введите дату вашего рождения, в формате\n14.09.1985",
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
-        await message.reply(
+        await message.answer(
             "Таких коротких отчеств не бывает, введите другое",
             reply_markup=ReplyKeyboardRemove(),
         )
@@ -196,7 +199,9 @@ async def check_info(message: Message, state: FSMContext) -> None:
 async def check_info_yes(message: Message, state: FSMContext) -> None:
     await state.clear()
 
-    await message.reply(
+    # Запрос на занесение юзера в БД
+
+    await message.answer(
         SUBSCRIBE_OFFER,
         reply_markup=subscribe_menu(),
     )
@@ -206,26 +211,100 @@ async def check_info_yes(message: Message, state: FSMContext) -> None:
 async def check_info_no(message: Message, state: FSMContext) -> None:
     await state.set_state(Form.surname)
 
-    await message.reply(
+    await message.answer(
         "Тогда попробуем ещё раз ввести данные.\nВведите свою фамилию",
         reply_markup=ReplyKeyboardRemove(),
     )
 
 
 @form_router.message(F.text.casefold() == "подписаться")
-async def subscribe_start(message: Message, state: FSMContext) -> None:
-    if len(message.text) > 1:
-        await state.set_state(Form.birthday)
-        await state.update_data(otchestvo=message.text)
-        await message.reply(
-            "Отлично, теперь введите дату вашего рождения, в формате\n14.09.1985",
+async def subscribe_start(message: Message) -> None:
+    await message.answer(
+        "Выберите тип подписки",
+        reply_markup=subscribe_choice_menu(),
+    )
+
+
+@form_router.message(F.text.casefold() == "на всех")
+async def subscribe_all(message: Message) -> None:
+    # Запрос на подписание на ВСЕХ юзеров
+
+    await message.answer(
+        "Вы подписались на всех юзеров",
+        reply_markup=subscribe_choice_menu(),
+    )
+
+
+@form_router.message(F.text.casefold() == "на конкретного пользователя")
+async def request_surname_subscribe(message: Message, state: FSMContext) -> None:
+    await state.set_state(Form.surname_subscribe)
+
+    await message.answer(
+        "Введите фамилию юзера",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@form_router.message(Form.surname_subscribe)
+async def request_name_subscribe(message: Message, state: FSMContext) -> None:
+    # Получаем юзеров из БД по фамилии
+
+    no_users = True
+    one_user = True
+    several_users = True
+
+    if no_users:
+        await message.answer(
+            "Юзеров с такой фамилией НЕ найдено, перепроверьте",
             reply_markup=ReplyKeyboardRemove(),
         )
-    else:
-        await message.reply(
-            "Таких коротких отчеств не бывает, введите другое",
+
+    if one_user:
+        await state.set_state(Form.subscribe_finish)
+        await message.answer(
+            "Найден один юзер с такой фамилией, его ФИО, подписаться?",
+            reply_markup=yes_no_menu(),
+        )
+
+    if several_users:
+        await state.set_state(Form.name_subscribe)
+        await message.answer(
+            "Найдено несколько юзеров с такой фамилией, введите имя",
             reply_markup=ReplyKeyboardRemove(),
         )
+
+    # await state.set_state(Form.name)
+    # await state.update_data(surname=message.text)
+
+
+@form_router.message(Form.name_subscribe)
+async def request_otchestvo_subscribe(message: Message, state: FSMContext) -> None:
+    # По аналогии
+
+    await message.answer(
+        "Таких коротких имён не бывает, введите другое",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@form_router.message(Form.otchestvo_subscribe)
+async def subscribe_finish(message: Message, state: FSMContext) -> None:
+    # По аналогии
+
+    await message.answer(
+        "Таких коротких имён не бывает, введите другое",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@form_router.message(Form.subscribe_finish)
+async def subscribe_finish(message: Message, state: FSMContext) -> None:
+    # Подписываем на найденного юзера
+
+    await message.answer(
+        "Таких коротких имён не бывает, введите другое",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
 
 async def main():
