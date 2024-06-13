@@ -1,3 +1,4 @@
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, declarative_base
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, String, Text, Integer, UniqueConstraint, Boolean, TIMESTAMP, create_engine
@@ -5,13 +6,13 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import sqlalchemy as sa
 
-from .models import Base
-
-
-# Base = declarative_base()
+Base = declarative_base()
 
 
 class User(Base):
+    __tablename__ = 'user'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     surname: Mapped[str] = mapped_column(String(50), nullable=False, unique=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False, unique=False)
     otchestvo: Mapped[str] = mapped_column(String(50), nullable=False, unique=False)
@@ -23,6 +24,8 @@ class User(Base):
 
 
 class UserSubscriber(Base):
+    __tablename__ = 'user_subscriber'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
     subscriber_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
 
@@ -32,7 +35,3 @@ class UserSubscriber(Base):
     # relationships
     user = relationship("User", back_populates="user")
     subscriber = relationship("User", back_populates="subscriber")
-
-
-# Создание подключения к базе данных
-engine = create_engine('sqlite+aiosqlite:///./test.db')

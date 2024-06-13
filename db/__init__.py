@@ -2,4 +2,4 @@ __all__ = (
     "Base"
 )
 
-from .base import Base
+from .models import Base
