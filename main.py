@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from contextlib import suppress
+from typing import Any
 
 from aiogram import Bot, Dispatcher, Router, F, MagicFilter
 from aiogram.client.default import DefaultBotProperties
@@ -16,7 +18,7 @@ from aiogram.types import (
 from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
-from constants import START_MESSAGE, SUBSCRIBE_OFFER
+from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID
 from crud import create_user, get_user_by_telegram_id
 from validators import is_valid_date
 
@@ -91,34 +93,33 @@ def subscribe_choice_menu():
 
 
 @form_router.message(Command("start"))
-async def command_start(message: Message) -> None:
-
-    await message.answer(
+async def command_start(message: Message) -> Any:
+    return await message.answer(
         START_MESSAGE,
         reply_markup=main_menu()
     )
 
 
 @form_router.message(F.text.casefold() == "отменить")
-async def cancel_handler(message: Message, state: FSMContext) -> None:
+async def cancel_handler(message: Message, state: FSMContext) -> Any:
     """
-    Allow user to Отменить any action
+    Позволяет юзеру отменить некое действие
     """
     current_state = await state.get_state()
-    if current_state is None:
-        return
 
     logger.info("Cancelling state %r", current_state)
     await state.clear()
-    await message.answer(
-        "Cancelled.",
+    with suppress(Exception):
+        await message.delete()
+
+    return await message.answer(
+        CANCEL_MESSAGE,
         reply_markup=ReplyKeyboardRemove(),
     )
 
 
 @form_router.message(F.text.casefold() == "авторизоваться")
 async def request_surname(message: Message, state: FSMContext) -> None:
-
     user_db = await get_user_by_telegram_id(message.from_user.id)
 
     if user_db:
@@ -146,7 +147,7 @@ async def request_name(message: Message, state: FSMContext) -> None:
         )
     else:
         await message.answer(
-            "Таких коротких фамилий не бывает, введите другую",
+            REQUEST_NAME_MESSAGE_INVALID,
             reply_markup=ReplyKeyboardRemove(),
         )
 
