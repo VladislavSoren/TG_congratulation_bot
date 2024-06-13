@@ -13,10 +13,14 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
+from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER
+from crud import create_user, get_user_by_telegram_id
 from validators import is_valid_date
+
+logger = logging.getLogger(__name__)
 
 # Параметры логирования
 logging.basicConfig(filename="py_log.log",
@@ -51,12 +55,12 @@ def yes_no_menu():
     )
 
 
-def auth_menu():
+def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(text="Авторизоваться"),
-                KeyboardButton(text="Отменить"),
+                KeyboardButton(text="Подписаться"),
             ]
         ],
         resize_keyboard=True,
@@ -88,9 +92,10 @@ def subscribe_choice_menu():
 
 @form_router.message(Command("start"))
 async def command_start(message: Message) -> None:
+
     await message.answer(
         START_MESSAGE,
-        reply_markup=auth_menu()
+        reply_markup=main_menu()
     )
 
 
@@ -103,7 +108,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
     if current_state is None:
         return
 
-    logging.info("Cancelling state %r", current_state)
+    logger.info("Cancelling state %r", current_state)
     await state.clear()
     await message.answer(
         "Cancelled.",
@@ -113,12 +118,21 @@ async def cancel_handler(message: Message, state: FSMContext) -> None:
 
 @form_router.message(F.text.casefold() == "авторизоваться")
 async def request_surname(message: Message, state: FSMContext) -> None:
-    await state.set_state(Form.surname)
 
-    await message.answer(
-        "Введите свою фамилию",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    user_db = await get_user_by_telegram_id(message.from_user.id)
+
+    if user_db:
+        await message.answer(
+            "Вы уже авторизованы",
+            reply_markup=subscribe_menu()
+        )
+    else:
+        await state.set_state(Form.surname)
+
+        await message.answer(
+            "Введите свою фамилию",
+            reply_markup=ReplyKeyboardRemove(),
+        )
 
 
 @form_router.message(Form.surname)
@@ -197,14 +211,26 @@ async def check_info(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Form.check_info, F.text.casefold() == "да")
 async def check_info_yes(message: Message, state: FSMContext) -> None:
-    await state.clear()
+    user_info = await state.get_data()
+
+    user_info["id_telegram"] = message.from_user.id
+    user_info["username_telegram"] = message.from_user.username
 
     # Запрос на занесение юзера в БД
-
-    await message.answer(
-        SUBSCRIBE_OFFER,
-        reply_markup=subscribe_menu(),
-    )
+    try:
+        await create_user(user_info)
+    except exc.IntegrityError as e:
+        await message.answer(
+            str(e),
+            reply_markup=subscribe_menu(),
+        )
+        logger.error(e)
+    else:
+        await state.clear()
+        await message.answer(
+            SUBSCRIBE_OFFER,
+            reply_markup=subscribe_menu(),
+        )
 
 
 @form_router.message(Form.check_info, F.text.casefold() == "нет")
@@ -299,7 +325,9 @@ async def subscribe_finish(message: Message, state: FSMContext) -> None:
 
 @form_router.message(Form.subscribe_finish)
 async def subscribe_finish(message: Message, state: FSMContext) -> None:
-    # Подписываем на найденного юзера
+    # Подписываем на найденного юзера в БД
+
+    await state.clear()
 
     await message.answer(
         "Таких коротких имён не бывает, введите другое",
@@ -315,6 +343,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    logging.warning(f"Start bot")
+    logger.warning(f"Start bot")
     asyncio.run(main())
-    logging.warning(f"Finish bot")
+    logger.warning(f"Finish bot")
