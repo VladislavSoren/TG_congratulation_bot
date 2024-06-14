@@ -19,7 +19,9 @@ from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID
-from crud import create_user, get_user_by_telegram_id
+from crud import create_user, get_user_by_telegram_id, get_users_by_filters, create_subscriber, subscribe_all, \
+    subscribe_one_user
+from dependencies import UserCheckMiddleware, UserCheckRequired
 from validators import is_valid_date
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,17 @@ def main_menu():
             [
                 KeyboardButton(text="Авторизоваться"),
                 KeyboardButton(text="Подписаться"),
+            ]
+        ],
+        resize_keyboard=True,
+    )
+
+
+def auth_menu():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Авторизоваться"),
             ]
         ],
         resize_keyboard=True,
@@ -118,10 +131,8 @@ async def cancel_handler(message: Message, state: FSMContext) -> Any:
     )
 
 
-@form_router.message(F.text.casefold() == "авторизоваться")
-async def request_surname(message: Message, state: FSMContext) -> None:
-    user_db = await get_user_by_telegram_id(message.from_user.id)
-
+@form_router.message(F.text.casefold() == "авторизоваться", UserCheckRequired())
+async def request_surname(message: Message, state: FSMContext, user_db: bool = False) -> None:
     if user_db:
         await message.answer(
             "Вы уже авторизованы",
@@ -244,17 +255,30 @@ async def check_info_no(message: Message, state: FSMContext) -> None:
     )
 
 
-@form_router.message(F.text.casefold() == "подписаться")
-async def subscribe_start(message: Message) -> None:
-    await message.answer(
-        "Выберите тип подписки",
-        reply_markup=subscribe_choice_menu(),
-    )
+@form_router.message(F.text.casefold() == "подписаться", UserCheckRequired())
+async def subscribe_start(message: Message, state: FSMContext, user_db: bool = False) -> None:
+    # БД
+    if user_db:
+        await message.answer(
+            "Выберите тип подписки",
+            reply_markup=subscribe_choice_menu(),
+        )
+    else:
+        await message.answer(
+            "Пройдите авторизацию",
+            reply_markup=auth_menu(),
+        )
 
 
+# Подписание на ВСЕХ юзеров
 @form_router.message(F.text.casefold() == "на всех")
-async def subscribe_all(message: Message) -> None:
-    # Запрос на подписание на ВСЕХ юзеров
+async def subscribe_all_users(message: Message) -> None:
+
+    # Добавляем юзера в таблицу подписчиков
+    await create_subscriber(int(message.from_user.id))
+
+    # Подписываемся на всех юзеров
+    await subscribe_all(int(message.from_user.id))
 
     await message.answer(
         "Вы подписались на всех юзеров",
@@ -266,6 +290,9 @@ async def subscribe_all(message: Message) -> None:
 async def request_surname_subscribe(message: Message, state: FSMContext) -> None:
     await state.set_state(Form.surname_subscribe)
 
+    # Добавляем юзера в таблицу подписчиков
+    await create_subscriber(message.from_user.id)
+
     await message.answer(
         "Введите фамилию юзера",
         reply_markup=ReplyKeyboardRemove(),
@@ -274,64 +301,108 @@ async def request_surname_subscribe(message: Message, state: FSMContext) -> None
 
 @form_router.message(Form.surname_subscribe)
 async def request_name_subscribe(message: Message, state: FSMContext) -> None:
+    # Получаем введённую фамилию
+    surname = message.text.strip()
+    await state.update_data(surname=surname)
+
     # Получаем юзеров из БД по фамилии
+    users = await get_users_by_filters(surname=surname)
+    await state.update_data(users=users)
 
-    no_users = True
-    one_user = True
-    several_users = True
-
-    if no_users:
+    # Если юзеров НЕ нашлось -> введите повторно
+    if len(users) == 0:
         await message.answer(
             "Юзеров с такой фамилией НЕ найдено, перепроверьте",
             reply_markup=ReplyKeyboardRemove(),
         )
 
-    if one_user:
+    # Найден один -> предложение подписаться
+    if len(users) == 1:
         await state.set_state(Form.subscribe_finish)
         await message.answer(
             "Найден один юзер с такой фамилией, его ФИО, подписаться?",
             reply_markup=yes_no_menu(),
         )
 
-    if several_users:
+    # Найдено несколько -> следующий шаг фильтрации
+    if len(users) > 1:
         await state.set_state(Form.name_subscribe)
         await message.answer(
             "Найдено несколько юзеров с такой фамилией, введите имя",
             reply_markup=ReplyKeyboardRemove(),
         )
 
-    # await state.set_state(Form.name)
-    # await state.update_data(surname=message.text)
-
 
 @form_router.message(Form.name_subscribe)
 async def request_otchestvo_subscribe(message: Message, state: FSMContext) -> None:
-    # По аналогии
+    # Получаем введённое имя
+    name = message.text.strip()
+    subscribe_info = await state.get_data()
+    await state.update_data(name=name)
 
-    await message.answer(
-        "Таких коротких имён не бывает, введите другое",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    # Получаем юзеров из БД по фильтрам
+    users = await get_users_by_filters(surname=subscribe_info["surname"], name=name)
+    await state.update_data(users=users)
+
+    # Найден один -> предложение подписаться
+    if len(users) == 1:
+        await state.set_state(Form.subscribe_finish)
+        await message.answer(
+            "Найден один юзер, его ФИО, подписаться?",
+            reply_markup=yes_no_menu(),
+        )
+
+    # Найдено несколько -> следующий шаг фильтрации
+    if len(users) > 1:
+        await state.set_state(Form.name_subscribe)
+        await message.answer(
+            "Найдено несколько юзеров с такой фамилией и именем, введите отчество",
+            reply_markup=ReplyKeyboardRemove(),
+        )
 
 
 @form_router.message(Form.otchestvo_subscribe)
-async def subscribe_finish(message: Message, state: FSMContext) -> None:
-    # По аналогии
+async def subscribe_request(message: Message, state: FSMContext) -> None:
+    # Получаем введённое отчество
+    otchestvo = message.text.strip()
+    subscribe_info = await state.get_data()
+    await state.update_data(otchestvo=otchestvo)
 
-    await message.answer(
-        "Таких коротких имён не бывает, введите другое",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    # Получаем юзеров из БД по фильтрам
+    users = await get_users_by_filters(
+        surname=subscribe_info["surname"],
+        name=subscribe_info["name"],
+        otchestvo=otchestvo)
+    await state.update_data(users=users)
+
+    # Найден один -> предложение подписаться
+    if len(users) == 1:
+        await state.set_state(Form.subscribe_finish)
+        await message.answer(
+            "Найден один юзер, его ФИО, подписаться?",
+            reply_markup=yes_no_menu(),
+        )
+
+    # Найдено несколько -> следующий шаг фильтрации
+    if len(users) > 1:
+        await state.set_state(Form.subscribe_finish)
+        await message.answer(
+            "Найдено несколько юзеров с данным ФИО, подписаться на всех?",
+            reply_markup=ReplyKeyboardRemove(),
+        )
 
 
 @form_router.message(Form.subscribe_finish)
 async def subscribe_finish(message: Message, state: FSMContext) -> None:
     # Подписываем на найденного юзера в БД
+    subscribe_info = await state.get_data()
+
+    await subscribe_one_user(int(message.from_user.id), subscribe_info["users"])
 
     await state.clear()
 
     await message.answer(
-        "Таких коротких имён не бывает, введите другое",
+        "Подписка оформлена",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -339,6 +410,7 @@ async def subscribe_finish(message: Message, state: FSMContext) -> None:
 async def main():
     bot = Bot(token=TG_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
+    dp.message.middleware(UserCheckMiddleware())
     dp.include_router(form_router)
     await dp.start_polling(bot)
 

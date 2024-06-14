@@ -41,7 +41,6 @@ async def test_cancel_handler():
 
 @pytest.mark.asyncio
 async def test_request_name_invalid():
-
     message = AsyncMock()
     storage = MemoryStorage()
 
@@ -53,23 +52,3 @@ async def test_request_name_invalid():
     await request_name(message, state)
 
     message.answer.assert_called_with(REQUEST_NAME_MESSAGE_INVALID, reply_markup=ReplyKeyboardRemove())
-
-
-
-# @pytest.mark.asyncio
-# async def test_request_surname():
-#     # message = AsyncMock()
-#     message = MockMess()
-#     storage = MemoryStorage()
-#
-#     state = FSMContext(storage=storage, key=StorageKey(
-#         bot_id=TEST_BOT_ID,
-#         chat_id=TEST_USER_CHAT.id,
-#         user_id=TEST_USER.id,
-#     ))
-#     await request_surname(message, state)
-
-
-# @pytest.fixture(scope="session")
-# async def event_loop():
-#     return asyncio.get_event_loop()
