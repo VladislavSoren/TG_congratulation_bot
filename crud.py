@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import text, exc, select, Result, true, extract
+from sqlalchemy import text, exc, select, Result, true, extract, delete
 from sqlalchemy.orm import selectinload
 
 from constants import BIRTHDAY_DATE_FORMAT
@@ -165,3 +165,16 @@ async def get_all_users_subscribers_ids_set(user_id):
             ids.add(obj.subscriber.user_id)
 
         return ids
+
+
+async def delete_all_subscriptions(user_id):
+    async with db_helper.async_session_factory() as session:
+        # Находим свой id подписчика
+        stmt = select(Subscriber).where(Subscriber.user_id == user_id)
+        result: Result = await session.execute(stmt)
+        subscribe_id = result.scalars().one().id
+
+        # Удаляем все свои подписки
+        stmt = delete(UserSubscriber).where(UserSubscriber.subscriber_id == subscribe_id)
+        await session.execute(stmt)
+        await session.commit()

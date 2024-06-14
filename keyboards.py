@@ -19,6 +19,7 @@ def main_menu():
             [
                 KeyboardButton(text="Авторизоваться"),
                 KeyboardButton(text="Подписаться"),
+                KeyboardButton(text="Отписаться"),
             ]
         ],
         resize_keyboard=True,

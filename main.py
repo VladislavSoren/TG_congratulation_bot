@@ -20,7 +20,7 @@ from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
     TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE
 from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
-    subscribe_one_user
+    subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
 from init_global_shedular import global_scheduler
 from keyboards import yes_no_menu, main_menu, auth_menu, subscribe_menu, subscribe_choice_menu
@@ -96,6 +96,17 @@ async def request_surname(message: Message, state: FSMContext, user_db: bool = F
             reply_markup=ReplyKeyboardRemove(),
         )
 
+
+# Отписаться от всех
+@form_router.message(F.text.casefold() == "отписаться", UserCheckRequired())
+async def request_surname(message: Message) -> None:
+    await message.delete()
+    await delete_all_subscriptions(int(message.from_user.id))
+
+    await message.answer(
+        "Вы отписались от рассылки",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
 # Запрос имени
 @form_router.message(Form.surname)
