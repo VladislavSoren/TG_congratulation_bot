@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint, TIMESTAMP, Integer, Date
+from sqlalchemy import ForeignKey, String, UniqueConstraint, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,9 +16,6 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     otchestvo: Mapped[str] = mapped_column(String(50), nullable=True)
     birthday: Mapped[datetime] = mapped_column(Date(), nullable=False)
-
-    # # additional properties
-    # __table_args__ = (UniqueConstraint("id"),)
 
     # relationships
     subscriber = relationship("UserSubscriber", back_populates="user")

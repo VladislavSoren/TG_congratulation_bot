@@ -51,7 +51,8 @@ async def send_birthday_reminder(user_id):
     # Получаем всех подписчиков юзера из БД
     ids_set = await get_all_users_subscribers_ids_set(user_id)
 
-    # Рассылаем напоминание
+    # Рассылаем напоминание всем, кроме себя
     for obj_id in ids_set:
-        await bot_instance.send_message(chat_id=obj_id, text=text_mess)
+        if int(user_id) != int(obj_id):
+            await bot_instance.send_message(chat_id=obj_id, text=text_mess)
 

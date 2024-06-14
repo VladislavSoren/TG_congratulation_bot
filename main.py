@@ -4,27 +4,26 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-from aiogram import Bot, Dispatcher, Router, F, MagicFilter
+from aiogram import Bot, Dispatcher, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
-    KeyboardButton,
     Message,
-    ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
 from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
-    TASK_INTERVAL_MINUTES
-from crud import create_user, get_user_by_telegram_id, get_users_by_filters, create_subscriber, subscribe_all, \
+    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE
+from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user
 from dependencies import UserCheckMiddleware, UserCheckRequired
 from init_global_shedular import global_scheduler
+from keyboards import yes_no_menu, main_menu, auth_menu, subscribe_menu, subscribe_choice_menu
 from mail import make_periodical_tasks, set_bot_instance
 from validators import is_valid_date
 
@@ -51,64 +50,7 @@ class Form(StatesGroup):
     subscribe_finish = State()
 
 
-def yes_no_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Да"),
-                KeyboardButton(text="Нет"),
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
-def main_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Авторизоваться"),
-                KeyboardButton(text="Подписаться"),
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
-def auth_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Авторизоваться"),
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
-def subscribe_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="Подписаться")
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
-def subscribe_choice_menu():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(text="На всех"),
-                KeyboardButton(text="На конкретного пользователя"),
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
+# Стартовое меню
 @form_router.message(Command("start"))
 async def command_start(message: Message) -> Any:
     return await message.answer(
@@ -117,6 +59,7 @@ async def command_start(message: Message) -> Any:
     )
 
 
+# Команда отмены
 @form_router.message(F.text.casefold() == "отменить")
 async def cancel_handler(message: Message, state: FSMContext) -> Any:
     """
@@ -135,6 +78,7 @@ async def cancel_handler(message: Message, state: FSMContext) -> Any:
     )
 
 
+# Запрос фамилии
 @form_router.message(F.text.casefold() == "авторизоваться", UserCheckRequired())
 async def request_surname(message: Message, state: FSMContext, user_db: bool = False) -> None:
     await message.delete()
@@ -153,6 +97,7 @@ async def request_surname(message: Message, state: FSMContext, user_db: bool = F
         )
 
 
+# Запрос имени
 @form_router.message(Form.surname)
 async def request_name(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
@@ -169,6 +114,7 @@ async def request_name(message: Message, state: FSMContext) -> None:
         )
 
 
+# Запрос отчества
 @form_router.message(Form.name)
 async def request_otchestvo(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
@@ -185,13 +131,14 @@ async def request_otchestvo(message: Message, state: FSMContext) -> None:
         )
 
 
+# Запрос дня рождения
 @form_router.message(Form.otchestvo)
 async def request_birthday(message: Message, state: FSMContext) -> None:
     if len(message.text) > 1:
         await state.set_state(Form.birthday)
         await state.update_data(otchestvo=message.text)
         await message.answer(
-            "Отлично, теперь введите дату вашего рождения, в формате\n14.09.1985",
+            AUTH_DATE_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
@@ -201,6 +148,7 @@ async def request_birthday(message: Message, state: FSMContext) -> None:
         )
 
 
+# Проверка введённой информации
 @form_router.message(Form.birthday)
 async def check_info(message: Message, state: FSMContext) -> None:
     date_is_valid = is_valid_date(message.text)
@@ -227,6 +175,7 @@ async def check_info(message: Message, state: FSMContext) -> None:
         )
 
 
+# Регистрация юзера после проверки инфы
 @form_router.message(Form.check_info, F.text.casefold() == "да")
 async def check_info_yes(message: Message, state: FSMContext) -> None:
     user_info = await state.get_data()
@@ -251,6 +200,7 @@ async def check_info_yes(message: Message, state: FSMContext) -> None:
         )
 
 
+# Возврат к первому шагу заполнения инфы, в следствие НЕ верных данных
 @form_router.message(Form.check_info, F.text.casefold() == "нет")
 async def check_info_no(message: Message, state: FSMContext) -> None:
     await state.set_state(Form.surname)
@@ -261,8 +211,11 @@ async def check_info_no(message: Message, state: FSMContext) -> None:
     )
 
 
+# Отображение меню подписки
 @form_router.message(F.text.casefold() == "подписаться", UserCheckRequired())
 async def subscribe_start(message: Message, state: FSMContext, user_db: bool = False) -> None:
+    await message.delete()
+
     # БД
     if user_db:
         await message.answer(
@@ -323,9 +276,10 @@ async def request_name_subscribe(message: Message, state: FSMContext) -> None:
 
     # Найден один -> предложение подписаться
     if len(users) == 1:
+        user = users[0]
         await state.set_state(Form.subscribe_finish)
         await message.answer(
-            "Найден один юзер с такой фамилией, его ФИО, подписаться?",
+            f"Найден один юзер с такой фамилией: {user.surname} {user.name} {user.otchestvo}, подписаться?",
             reply_markup=yes_no_menu(),
         )
 
@@ -351,15 +305,16 @@ async def request_otchestvo_subscribe(message: Message, state: FSMContext) -> No
 
     # Найден один -> предложение подписаться
     if len(users) == 1:
+        user = users[0]
         await state.set_state(Form.subscribe_finish)
         await message.answer(
-            "Найден один юзер, его ФИО, подписаться?",
+            f"Найден один юзер с такой фамилией: {user.surname} {user.name} {user.otchestvo}, подписаться?",
             reply_markup=yes_no_menu(),
         )
 
     # Найдено несколько -> следующий шаг фильтрации
     if len(users) > 1:
-        await state.set_state(Form.name_subscribe)
+        await state.set_state(Form.otchestvo_subscribe)
         await message.answer(
             "Найдено несколько юзеров с такой фамилией и именем, введите отчество",
             reply_markup=ReplyKeyboardRemove(),
@@ -382,9 +337,10 @@ async def subscribe_request(message: Message, state: FSMContext) -> None:
 
     # Найден один -> предложение подписаться
     if len(users) == 1:
+        user = users[0]
         await state.set_state(Form.subscribe_finish)
         await message.answer(
-            "Найден один юзер, его ФИО, подписаться?",
+            f"Найден один юзер с такой фамилией: {user.surname} {user.name} {user.otchestvo}, подписаться?",
             reply_markup=yes_no_menu(),
         )
 
@@ -457,15 +413,15 @@ async def startup():
             misfire_grace_time=60,
         )
 
-        print(f"scheduler main.py id - {id(global_scheduler)}")
+        logger.info(f"scheduler main.py id - {id(global_scheduler)}")
         global_scheduler.start()  # Necessarily to add periodical task before scheduler start!
         global_scheduler.print_jobs()
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 if __name__ == "__main__":
-    logger.warning(f"Start bot")
+    logger.info(f"Start bot")
     asyncio.run(main())
-    logger.warning(f"Finish bot")
+    logger.info(f"Finish bot")

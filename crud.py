@@ -58,9 +58,9 @@ async def get_users_by_filters(
                 # birthday = форматировать
                 birthday_date_obj = datetime.strptime(birthday, BIRTHDAY_DATE_FORMAT)
                 filter_birthday = (
-                                    extract('month', User.birthday) == birthday_date_obj.month
+                                          extract('month', User.birthday) == birthday_date_obj.month
                                   ) & (
-                                    extract('day', User.birthday) == birthday_date_obj.day
+                                          extract('day', User.birthday) == birthday_date_obj.day
                                   )
             else:
                 filter_birthday = User.birthday == birthday if birthday else true()
@@ -165,14 +165,3 @@ async def get_all_users_subscribers_ids_set(user_id):
             ids.add(obj.subscriber.user_id)
 
         return ids
-
-
-
-
-
-
-
-
-
-
-
