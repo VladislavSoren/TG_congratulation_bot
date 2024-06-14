@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import suppress
+from datetime import datetime, timedelta
 from typing import Any
 
 from aiogram import Bot, Dispatcher, Router, F, MagicFilter
@@ -18,10 +19,13 @@ from aiogram.types import (
 from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
-from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID
+from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
+    TASK_INTERVAL_MINUTES
 from crud import create_user, get_user_by_telegram_id, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user
 from dependencies import UserCheckMiddleware, UserCheckRequired
+from init_global_shedular import global_scheduler
+from mail import make_periodical_tasks, set_bot_instance
 from validators import is_valid_date
 
 logger = logging.getLogger(__name__)
@@ -133,6 +137,8 @@ async def cancel_handler(message: Message, state: FSMContext) -> Any:
 
 @form_router.message(F.text.casefold() == "авторизоваться", UserCheckRequired())
 async def request_surname(message: Message, state: FSMContext, user_db: bool = False) -> None:
+    await message.delete()
+
     if user_db:
         await message.answer(
             "Вы уже авторизованы",
@@ -273,7 +279,6 @@ async def subscribe_start(message: Message, state: FSMContext, user_db: bool = F
 # Подписание на ВСЕХ юзеров
 @form_router.message(F.text.casefold() == "на всех")
 async def subscribe_all_users(message: Message) -> None:
-
     # Добавляем юзера в таблицу подписчиков
     await create_subscriber(int(message.from_user.id))
 
@@ -392,8 +397,8 @@ async def subscribe_request(message: Message, state: FSMContext) -> None:
         )
 
 
-@form_router.message(Form.subscribe_finish)
-async def subscribe_finish(message: Message, state: FSMContext) -> None:
+@form_router.message(Form.subscribe_finish, F.text.casefold() == "да")
+async def subscribe_finish_ok(message: Message, state: FSMContext) -> None:
     # Подписываем на найденного юзера в БД
     subscribe_info = await state.get_data()
 
@@ -401,18 +406,63 @@ async def subscribe_finish(message: Message, state: FSMContext) -> None:
 
     await state.clear()
 
+    await message.delete()
+
     await message.answer(
         "Подписка оформлена",
         reply_markup=ReplyKeyboardRemove(),
     )
 
 
+@form_router.message(Form.subscribe_finish, F.text.casefold() == "нет")
+async def subscribe_finish_no(message: Message, state: FSMContext) -> None:
+    await state.clear()
+
+    await message.delete()
+
+    await message.answer(
+        "Подписка отклонена",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
 async def main():
+    global bot
+
+    await startup()
+
     bot = Bot(token=TG_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     dp.message.middleware(UserCheckMiddleware())
     dp.include_router(form_router)
+
+    # Передача объекта Bot в mail.py
+    set_bot_instance(bot)
+
     await dp.start_polling(bot)
+
+
+async def startup():
+    current_time = datetime.now()
+    task_execute_date = (current_time + timedelta(days=0)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+
+    try:
+        global_scheduler.add_job(
+            make_periodical_tasks,
+            id="trigger_task",
+            trigger="cron",
+            minute=f"*/{TASK_INTERVAL_MINUTES}",
+            start_date=task_execute_date.strftime("%Y-%m-%d %H:%M:%S"),
+            misfire_grace_time=60,
+        )
+
+        print(f"scheduler main.py id - {id(global_scheduler)}")
+        global_scheduler.start()  # Necessarily to add periodical task before scheduler start!
+        global_scheduler.print_jobs()
+
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":

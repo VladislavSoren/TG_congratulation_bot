@@ -1,7 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import text, exc, select, Result, true
+from sqlalchemy import text, exc, select, Result, true, extract
+from sqlalchemy.orm import selectinload
 
+from constants import BIRTHDAY_DATE_FORMAT
 from db.db_helper import db_helper
 from db.models import User, Subscriber, UserSubscriber
 
@@ -12,7 +14,7 @@ async def create_user(user_info: dict):
         await session.execute(text('pragma foreign_keys=on'))
 
         # Prepare data
-        birthday = datetime.strptime(str(user_info["birthday"]), '%d.%m.%Y')
+        birthday = datetime.strptime(str(user_info["birthday"]), BIRTHDAY_DATE_FORMAT)
 
         obj = User(
             id=int(user_info["id_telegram"]),
@@ -41,13 +43,29 @@ async def get_users_by_filters(
         surname=None,
         name=None,
         otchestvo=None,
+        birthday=None,
+        birthday_filter_mon_day=None,
+
 ):
     async with db_helper.async_session_factory() as session:
         filter_surname = User.surname == surname if surname else true()
         filter_name = User.name == name if name else true()
         filter_otchestvo = User.otchestvo == otchestvo if otchestvo else true()
 
-        filters = filter_surname & filter_name & filter_otchestvo
+        filter_birthday = true()
+        if birthday:
+            if birthday_filter_mon_day:
+                # birthday = форматировать
+                birthday_date_obj = datetime.strptime(birthday, BIRTHDAY_DATE_FORMAT)
+                filter_birthday = (
+                                    extract('month', User.birthday) == birthday_date_obj.month
+                                  ) & (
+                                    extract('day', User.birthday) == birthday_date_obj.day
+                                  )
+            else:
+                filter_birthday = User.birthday == birthday if birthday else true()
+
+        filters = filter_surname & filter_name & filter_otchestvo & filter_birthday
 
         stmt = select(User).order_by(User.surname.asc()).filter(filters)
         result: Result = await session.execute(stmt)
@@ -133,6 +151,28 @@ async def subscribe_one_user(user_id: int, users: list[User]):
             except exc.IntegrityError as e:
                 await savepoint.rollback()
                 continue
+
+
+async def get_all_users_subscribers_ids_set(user_id):
+    async with db_helper.async_session_factory() as session:
+        stmt = select(UserSubscriber).options(selectinload(UserSubscriber.subscriber)).where(
+            UserSubscriber.user_id == user_id)
+        result: Result = await session.execute(stmt)
+        objs = result.scalars().all()
+
+        ids = set([])
+        for obj in objs:
+            ids.add(obj.subscriber.user_id)
+
+        return ids
+
+
+
+
+
+
+
+
 
 
 
