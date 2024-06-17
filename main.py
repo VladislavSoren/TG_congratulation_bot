@@ -18,7 +18,7 @@ from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
-    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE
+    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE, REQUEST_NAME_MESSAGE
 from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
@@ -108,6 +108,7 @@ async def request_surname(message: Message) -> None:
         reply_markup=ReplyKeyboardRemove(),
     )
 
+
 # Запрос имени
 @form_router.message(Form.surname)
 async def request_name(message: Message, state: FSMContext) -> None:
@@ -115,7 +116,7 @@ async def request_name(message: Message, state: FSMContext) -> None:
         await state.set_state(Form.name)
         await state.update_data(surname=message.text)
         await message.answer(
-            "Отлично, теперь введите ваше имя",
+            REQUEST_NAME_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
