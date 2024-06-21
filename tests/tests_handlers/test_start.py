@@ -6,9 +6,10 @@ from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove
 
-from constants import START_MESSAGE, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, REQUEST_NAME_MESSAGE
-from main import command_start, cancel_handler, request_name, Form
-from keyboards import main_menu
+from constants import START_MESSAGE, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, REQUEST_NAME_MESSAGE, \
+    YOU_ALREADY_AUTH_MESSAGE
+from main import command_start, cancel_handler, request_name, Form, request_surname
+from keyboards import main_menu, subscribe_menu
 from tests.utils import TEST_BOT_ID, TEST_USER_CHAT, TEST_USER, TEST_MESSAGE
 
 
@@ -52,6 +53,23 @@ async def test_request_name_invalid():
     await request_name(message, state)
 
     message.answer.assert_called_with(REQUEST_NAME_MESSAGE_INVALID, reply_markup=ReplyKeyboardRemove())
+
+
+@pytest.mark.asyncio
+async def test_request_surname_already_auth():
+    message = AsyncMock()
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await request_surname(message, state, user_db=True)
+
+    message.answer.assert_called_with(YOU_ALREADY_AUTH_MESSAGE, reply_markup=subscribe_menu())
+
+
 
 
 @pytest.mark.asyncio
