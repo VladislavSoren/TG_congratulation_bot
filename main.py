@@ -17,9 +17,10 @@ from aiogram.types import (
 from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
-from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
-    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE, REQUEST_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
-    YOU_UNSUBSCRIBED_MESSAGE
+from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, \
+    TASK_INTERVAL_MINUTES, ENTER_BIRTHDAY_MESSAGE, ENTER_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
+    YOU_UNSUBSCRIBED_MESSAGE, ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
+    CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE
 from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
@@ -119,12 +120,12 @@ async def request_name(message: Message, state: FSMContext) -> None:
         await state.set_state(Form.name)
         await state.update_data(surname=message.text)
         await message.answer(
-            REQUEST_NAME_MESSAGE,
+            ENTER_NAME_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
         await message.answer(
-            REQUEST_NAME_MESSAGE_INVALID,
+            SURNAME_INVALID_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -136,12 +137,12 @@ async def request_otchestvo(message: Message, state: FSMContext) -> None:
         await state.set_state(Form.otchestvo)
         await state.update_data(name=message.text)
         await message.answer(
-            "Отлично, теперь введите ваше отчество",
+            ENTER_OTCHESTVO_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
         await message.answer(
-            "Таких коротких имён не бывает, введите другое",
+            NAME_INVALID_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -153,12 +154,12 @@ async def request_birthday(message: Message, state: FSMContext) -> None:
         await state.set_state(Form.birthday)
         await state.update_data(otchestvo=message.text)
         await message.answer(
-            AUTH_DATE_MESSAGE,
+            ENTER_BIRTHDAY_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
         await message.answer(
-            "Таких коротких отчеств не бывает, введите другое",
+            OTCHESTVO_INVALID_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -180,12 +181,12 @@ async def check_info(message: Message, state: FSMContext) -> None:
         answer = f"ФИО: {surname} {name} {otchestvo}\nДата рождения: {birthday}"
 
         await message.reply(
-            f"Отлично, проверьте корректность введённой информации:\n{answer}",
+            f"{CHECK_ENTERED_INFO_MESSAGE}\n{answer}",
             reply_markup=yes_no_menu(),
         )
     else:
-        await message.reply(
-            "Дата введена неверно, пожалуйста перепроверьте",
+        await message.answer(
+            BIRTHDAY_INVALID_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -211,7 +212,7 @@ async def check_info_yes(message: Message, state: FSMContext) -> None:
         await state.clear()
         await message.answer(
             SUBSCRIBE_OFFER,
-            reply_markup=subscribe_menu(),
+            reply_markup=auth_menu(),
         )
 
 

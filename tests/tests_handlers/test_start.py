@@ -9,12 +9,15 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove
 from sqlalchemy import text, exc, delete
 
-from constants import START_MESSAGE, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, REQUEST_NAME_MESSAGE, \
-    YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, YOU_UNSUBSCRIBED_MESSAGE, BIRTHDAY_DATE_FORMAT
+from constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, ENTER_NAME_MESSAGE, \
+    YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, YOU_UNSUBSCRIBED_MESSAGE, BIRTHDAY_DATE_FORMAT, \
+    ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, ENTER_BIRTHDAY_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
+    CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE
 from db.db_helper import db_helper
 from db.models import User
-from main import command_start, cancel_handler, request_name, Form, request_surname, unsubscribe_all
-from keyboards import main_menu, subscribe_menu
+from main import command_start, cancel_handler, request_name, Form, request_surname, unsubscribe_all, request_otchestvo, \
+    request_birthday, check_info
+from keyboards import main_menu, subscribe_menu, yes_no_menu
 from tests.utils import TEST_BOT_ID, TEST_USER_CHAT, TEST_USER, TEST_MESSAGE
 
 
@@ -133,28 +136,10 @@ async def test_request_surname_not_auth():
 
 # Тестирование состояний функции request_name
 @pytest.mark.asyncio
-async def test_request_name_invalid():
-    message = AsyncMock()
-    message.text = "1"
-    # message = TEST_MESSAGE
-    storage = MemoryStorage()
-
-    state = FSMContext(storage=storage, key=StorageKey(
-        bot_id=TEST_BOT_ID,
-        chat_id=TEST_USER_CHAT.id,
-        user_id=TEST_USER.id,
-    ))
-    await request_name(message, state)
-
-    message.answer.assert_called_with(REQUEST_NAME_MESSAGE_INVALID, reply_markup=ReplyKeyboardRemove())
-
-
-@pytest.mark.asyncio
 async def test_request_name_valid():
     message = AsyncMock()
-    message.text = "123"
-    message.from_user.id = "123"
-    # message = TEST_MESSAGE
+    message.text = "12"
+    message.from_user.id = "12"
     storage = MemoryStorage()
 
     state = FSMContext(storage=storage, key=StorageKey(
@@ -166,4 +151,153 @@ async def test_request_name_valid():
 
     assert await state.get_state() == Form.name.state
     assert (await state.get_data())["surname"] == message.text
-    message.answer.assert_called_with(REQUEST_NAME_MESSAGE, reply_markup=ReplyKeyboardRemove())
+    message.answer.assert_called_with(ENTER_NAME_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+@pytest.mark.asyncio
+async def test_request_name_invalid():
+    message = AsyncMock()
+    message.text = "1"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await state.set_state(Form.surname)
+
+    await request_name(message, state)
+
+    assert await state.get_state() == Form.surname.state
+    message.answer.assert_called_with(SURNAME_INVALID_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+# Тестирование состояний функции request_otchestvo
+@pytest.mark.asyncio
+async def test_request_otchestvo_valid():
+    message = AsyncMock()
+    message.text = "12"
+    message.from_user.id = "12"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await request_otchestvo(message, state)
+
+    assert await state.get_state() == Form.otchestvo.state
+    assert (await state.get_data())["name"] == message.text
+    message.answer.assert_called_with(ENTER_OTCHESTVO_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+@pytest.mark.asyncio
+async def test_request_otchestvo_invalid():
+    message = AsyncMock()
+    message.text = "1"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await state.set_state(Form.name)
+
+    await request_otchestvo(message, state)
+
+    assert await state.get_state() == Form.name.state
+    message.answer.assert_called_with(NAME_INVALID_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+# Тестирование состояний функции request_birthday
+
+@pytest.mark.asyncio
+async def test_request_birthday_valid():
+    message = AsyncMock()
+    message.text = "12"
+    message.from_user.id = "12"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await request_birthday(message, state)
+
+    assert await state.get_state() == Form.birthday.state
+    assert (await state.get_data())["otchestvo"] == message.text
+    message.answer.assert_called_with(ENTER_BIRTHDAY_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+@pytest.mark.asyncio
+async def test_request_birthday_invalid():
+    message = AsyncMock()
+    message.text = "1"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+
+    await request_birthday(message, state)
+
+    message.answer.assert_called_with(OTCHESTVO_INVALID_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+# Тестирование состояний функции check_info
+@pytest.mark.asyncio
+async def test_check_info_valid():
+    message = AsyncMock()
+    message.text = "2000-05-05"
+    message.from_user.id = "12"
+    surname = "12"
+    name = "12"
+    otchestvo = "12"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+
+    await state.update_data(surname=surname)
+    await state.update_data(name=name)
+    await state.update_data(otchestvo=otchestvo)
+    await state.update_data(birthday=message.text)
+
+    await check_info(message, state)
+
+    answer = f"ФИО: {surname} {name} {otchestvo}\nДата рождения: {message.text}"
+    out_message = f"{CHECK_ENTERED_INFO_MESSAGE}\n{answer}"
+
+    assert await state.get_state() == Form.check_info.state
+    assert (await state.get_data())["birthday"] == message.text
+    message.reply.assert_called_with(
+        out_message,
+        reply_markup=yes_no_menu())
+
+
+@pytest.mark.asyncio
+async def test_check_info_invalid():
+    message = AsyncMock()
+    message.text = "1"
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await state.set_state(Form.birthday)
+
+    await check_info(message, state)
+
+    assert await state.get_state() == Form.birthday.state
+    message.answer.assert_called_with(BIRTHDAY_INVALID_MESSAGE, reply_markup=ReplyKeyboardRemove())
