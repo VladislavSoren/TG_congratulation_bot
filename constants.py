@@ -11,8 +11,16 @@ CANCEL_MESSAGE = '''
 Отменено.
 '''
 
+YOU_UNSUBSCRIBED_MESSAGE = '''
+Вы отписались от рассылки
+'''
+
 YOU_ALREADY_AUTH_MESSAGE = '''
 Вы уже авторизованы
+'''
+
+ENTER_SURNAME_MESSAGE = '''
+Введите свою фамилию
 '''
 
 AUTH_DATE_MESSAGE = '''

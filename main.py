@@ -18,7 +18,8 @@ from sqlalchemy import exc
 
 from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, \
-    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE, REQUEST_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE
+    TASK_INTERVAL_MINUTES, AUTH_DATE_MESSAGE, REQUEST_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
+    YOU_UNSUBSCRIBED_MESSAGE
 from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
@@ -65,6 +66,8 @@ async def cancel_handler(message: Message, state: FSMContext) -> Any:
     """
     Позволяет юзеру отменить некое действие
     """
+    await message.delete()
+
     current_state = await state.get_state()
 
     logger.info("Cancelling state %r", current_state)
@@ -74,6 +77,18 @@ async def cancel_handler(message: Message, state: FSMContext) -> Any:
 
     return await message.answer(
         CANCEL_MESSAGE,
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+# Отписаться от всех
+@form_router.message(F.text.casefold() == "отписаться", UserCheckRequired())
+async def unsubscribe_all(message: Message) -> None:
+    await message.delete()
+    await delete_all_subscriptions(int(message.from_user.id))
+
+    await message.answer(
+        YOU_UNSUBSCRIBED_MESSAGE,
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -92,21 +107,9 @@ async def request_surname(message: Message, state: FSMContext, user_db: bool = F
         await state.set_state(Form.surname)
 
         await message.answer(
-            "Введите свою фамилию",
+            ENTER_SURNAME_MESSAGE,
             reply_markup=ReplyKeyboardRemove(),
         )
-
-
-# Отписаться от всех
-@form_router.message(F.text.casefold() == "отписаться", UserCheckRequired())
-async def unsubscribe_all(message: Message) -> None:
-    await message.delete()
-    await delete_all_subscriptions(int(message.from_user.id))
-
-    await message.answer(
-        "Вы отписались от рассылки",
-        reply_markup=ReplyKeyboardRemove(),
-    )
 
 
 # Запрос имени

@@ -1,18 +1,24 @@
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
+import pytest_asyncio
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove
+from sqlalchemy import text, exc, delete
 
 from constants import START_MESSAGE, CANCEL_MESSAGE, REQUEST_NAME_MESSAGE_INVALID, REQUEST_NAME_MESSAGE, \
-    YOU_ALREADY_AUTH_MESSAGE
-from main import command_start, cancel_handler, request_name, Form, request_surname
+    YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, YOU_UNSUBSCRIBED_MESSAGE, BIRTHDAY_DATE_FORMAT
+from db.db_helper import db_helper
+from db.models import User
+from main import command_start, cancel_handler, request_name, Form, request_surname, unsubscribe_all
 from keyboards import main_menu, subscribe_menu
 from tests.utils import TEST_BOT_ID, TEST_USER_CHAT, TEST_USER, TEST_MESSAGE
 
 
+# Тестирование функции command_start
 @pytest.mark.asyncio
 async def test_start_handler():
     message = AsyncMock()
@@ -21,6 +27,7 @@ async def test_start_handler():
     message.answer.assert_called_with(START_MESSAGE, reply_markup=main_menu())
 
 
+# Тестирование функции cancel_handler
 @pytest.mark.asyncio
 async def test_cancel_handler():
     message = AsyncMock()
@@ -34,27 +41,66 @@ async def test_cancel_handler():
     await cancel_handler(message, state)
 
     assert await state.get_state() is None
-    message.delete.any_call()
+    await message.delete.any_call()
     message.answer.assert_called_with(CANCEL_MESSAGE, reply_markup=ReplyKeyboardRemove())
 
 
+# Фикстура для подготовки тестовой базы данных
+@pytest_asyncio.fixture
+async def setup_and_teardown_db():
+    # Создание данных в ДБ перед тестом
+    async with db_helper.async_session_factory() as session:
+        await session.execute(text('pragma foreign_keys=on'))
+
+        user_info = {
+            "birthday": '2000-05-05',
+            "id_telegram": 333,
+            "username_telegram": '123',
+            "surname": '123',
+            "name": '123',
+            "otchestvo": '123'}
+
+        # Prepare data
+        birthday = datetime.strptime(str(user_info["birthday"]), BIRTHDAY_DATE_FORMAT)
+
+        obj = User(
+            id=int(user_info["id_telegram"]),
+            username_telegram=user_info["username_telegram"],
+            surname=user_info["surname"],
+            name=user_info["name"],
+            otchestvo=user_info["otchestvo"],
+            birthday=birthday,
+        )
+        session.add(obj)
+
+        await session.commit()
+    # except exc.IntegrityError as e:
+    #     await session.rollback()
+    #     raise
+
+    # Точка, где выполняется тест
+    yield
+
+    # Очистка данных после теста
+    async with db_helper.async_session_factory() as session:
+        stmt = delete(User).where(User.id == user_info["id_telegram"])
+        await session.execute(stmt)
+        await session.commit()
+
+
+# Тестирование функции request_name
 @pytest.mark.asyncio
-async def test_request_name_invalid():
+async def test_unsubscribe_all(setup_and_teardown_db):
     message = AsyncMock()
-    message.text = "1"
-    # message = TEST_MESSAGE
-    storage = MemoryStorage()
+    message.from_user.id = "123"
 
-    state = FSMContext(storage=storage, key=StorageKey(
-        bot_id=TEST_BOT_ID,
-        chat_id=TEST_USER_CHAT.id,
-        user_id=TEST_USER.id,
-    ))
-    await request_name(message, state)
+    await unsubscribe_all(message)
 
-    message.answer.assert_called_with(REQUEST_NAME_MESSAGE_INVALID, reply_markup=ReplyKeyboardRemove())
+    await message.delete.any_call()
+    message.answer.assert_called_with(YOU_UNSUBSCRIBED_MESSAGE, reply_markup=ReplyKeyboardRemove())
 
 
+# Тестирование состояний функции request_surname
 @pytest.mark.asyncio
 async def test_request_surname_already_auth():
     message = AsyncMock()
@@ -70,6 +116,37 @@ async def test_request_surname_already_auth():
     message.answer.assert_called_with(YOU_ALREADY_AUTH_MESSAGE, reply_markup=subscribe_menu())
 
 
+@pytest.mark.asyncio
+async def test_request_surname_not_auth():
+    message = AsyncMock()
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await request_surname(message, state, user_db=False)
+
+    message.answer.assert_called_with(ENTER_SURNAME_MESSAGE, reply_markup=ReplyKeyboardRemove())
+
+
+# Тестирование состояний функции request_name
+@pytest.mark.asyncio
+async def test_request_name_invalid():
+    message = AsyncMock()
+    message.text = "1"
+    # message = TEST_MESSAGE
+    storage = MemoryStorage()
+
+    state = FSMContext(storage=storage, key=StorageKey(
+        bot_id=TEST_BOT_ID,
+        chat_id=TEST_USER_CHAT.id,
+        user_id=TEST_USER.id,
+    ))
+    await request_name(message, state)
+
+    message.answer.assert_called_with(REQUEST_NAME_MESSAGE_INVALID, reply_markup=ReplyKeyboardRemove())
 
 
 @pytest.mark.asyncio
@@ -90,4 +167,3 @@ async def test_request_name_valid():
     assert await state.get_state() == Form.name.state
     assert (await state.get_data())["surname"] == message.text
     message.answer.assert_called_with(REQUEST_NAME_MESSAGE, reply_markup=ReplyKeyboardRemove())
-

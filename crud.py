@@ -172,9 +172,14 @@ async def delete_all_subscriptions(user_id):
         # Находим свой id подписчика
         stmt = select(Subscriber).where(Subscriber.user_id == user_id)
         result: Result = await session.execute(stmt)
-        subscribe_id = result.scalars().one().id
+        # subscribe_id = result.scalars().one().id
+        objs = result.scalars().all()
+        if len(objs) > 0:
+            subscribe_id = objs[0].id
 
-        # Удаляем все свои подписки
-        stmt = delete(UserSubscriber).where(UserSubscriber.subscriber_id == subscribe_id)
-        await session.execute(stmt)
-        await session.commit()
+            # Удаляем все свои подписки
+            stmt = delete(UserSubscriber).where(UserSubscriber.subscriber_id == subscribe_id)
+            await session.execute(stmt)
+            await session.commit()
+        else:
+            pass
