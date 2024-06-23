@@ -20,7 +20,8 @@ from config import TG_BOT_TOKEN
 from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, \
     TASK_INTERVAL_MINUTES, ENTER_BIRTHDAY_MESSAGE, ENTER_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
     YOU_UNSUBSCRIBED_MESSAGE, ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
-    CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE
+    CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE, REPEAT_AUTHORIZATION_MESSAGE, CHOSE_SUBSCRIBE_TYPE_MESSAGE, \
+    PLEASE_AUTH_MESSAGE
 from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
@@ -194,26 +195,21 @@ async def check_info(message: Message, state: FSMContext) -> None:
 # Регистрация юзера после проверки инфы
 @form_router.message(Form.check_info, F.text.casefold() == "да")
 async def check_info_yes(message: Message, state: FSMContext) -> None:
+    await message.delete()
+
     user_info = await state.get_data()
 
     user_info["id_telegram"] = message.from_user.id
     user_info["username_telegram"] = message.from_user.username
 
     # Запрос на занесение юзера в БД
-    try:
-        await create_user(user_info)
-    except exc.IntegrityError as e:
-        await message.answer(
-            str(e),
-            reply_markup=subscribe_menu(),
-        )
-        logger.error(e)
-    else:
-        await state.clear()
-        await message.answer(
-            SUBSCRIBE_OFFER,
-            reply_markup=auth_menu(),
-        )
+    await create_user(user_info)
+
+    await state.clear()
+    await message.answer(
+        SUBSCRIBE_OFFER,
+        reply_markup=subscribe_menu(),
+    )
 
 
 # Возврат к первому шагу заполнения инфы, в следствие НЕ верных данных
@@ -222,7 +218,7 @@ async def check_info_no(message: Message, state: FSMContext) -> None:
     await state.set_state(Form.surname)
 
     await message.answer(
-        "Тогда попробуем ещё раз ввести данные.\nВведите свою фамилию",
+        REPEAT_AUTHORIZATION_MESSAGE,
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -235,12 +231,12 @@ async def subscribe_start(message: Message, state: FSMContext, user_db: bool = F
     # БД
     if user_db:
         await message.answer(
-            "Выберите тип подписки",
+            CHOSE_SUBSCRIBE_TYPE_MESSAGE,
             reply_markup=subscribe_choice_menu(),
         )
     else:
         await message.answer(
-            "Пройдите авторизацию",
+            PLEASE_AUTH_MESSAGE,
             reply_markup=auth_menu(),
         )
 
