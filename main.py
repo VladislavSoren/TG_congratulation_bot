@@ -1,23 +1,19 @@
 import asyncio
-import logging
-from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any
 
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import Command
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     Message,
-    ReplyKeyboardRemove,
+    ReplyKeyboardRemove, BotCommand,
 )
-from sqlalchemy import exc
 
+from handlers import register_user_commands, bot_commands
 from config import TG_BOT_TOKEN
-from constants import START_MESSAGE, SUBSCRIBE_OFFER, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, \
+from constants import SUBSCRIBE_OFFER, SURNAME_INVALID_MESSAGE, \
     TASK_INTERVAL_MINUTES, ENTER_BIRTHDAY_MESSAGE, ENTER_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
     YOU_UNSUBSCRIBED_MESSAGE, ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
     CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE, REPEAT_AUTHORIZATION_MESSAGE, CHOSE_SUBSCRIBE_TYPE_MESSAGE, \
@@ -26,17 +22,12 @@ from crud import create_user, get_users_by_filters, create_subscriber, subscribe
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
 from init_global_shedular import global_scheduler
-from keyboards import yes_no_menu, main_menu, auth_menu, subscribe_menu, subscribe_choice_menu
+from keyboards import yes_no_menu, auth_menu, subscribe_menu, subscribe_choice_menu
+from logger_global import logger
 from mail import make_periodical_tasks, set_bot_instance
 from validators import is_valid_date
 
-logger = logging.getLogger(__name__)
 
-# Параметры логирования
-logging.basicConfig(filename="py_log.log",
-                    filemode="w",
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
 
 form_router = Router()
 
@@ -51,36 +42,6 @@ class Form(StatesGroup):
     name_subscribe = State()
     otchestvo_subscribe = State()
     subscribe_finish = State()
-
-
-# Стартовое меню
-@form_router.message(Command("start"))
-async def command_start(message: Message) -> Message:
-    return await message.answer(
-        START_MESSAGE,
-        reply_markup=main_menu()
-    )
-
-
-# Команда отмены
-@form_router.message(F.text.casefold() == "отменить")
-async def cancel_handler(message: Message, state: FSMContext) -> Any:
-    """
-    Позволяет юзеру отменить некое действие
-    """
-    await message.delete()
-
-    current_state = await state.get_state()
-
-    logger.info("Cancelling state %r", current_state)
-    await state.clear()
-    with suppress(Exception):
-        await message.delete()
-
-    return await message.answer(
-        CANCEL_MESSAGE,
-        reply_markup=ReplyKeyboardRemove(),
-    )
 
 
 # Отписаться от всех
@@ -399,10 +360,18 @@ async def main():
 
     await startup()
 
+    commands_for_bot = []
+    for cmd in bot_commands:
+        commands_for_bot.append(BotCommand(command=cmd[0], description=cmd[1]))
+
     bot = Bot(token=TG_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    await bot.set_my_commands(commands=commands_for_bot)
     dp = Dispatcher()
     dp.message.middleware(UserCheckMiddleware())
     dp.include_router(form_router)
+
+    #
+    register_user_commands(dp)
 
     # Передача объекта Bot в mail.py
     set_bot_instance(bot)

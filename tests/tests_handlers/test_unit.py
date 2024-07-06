@@ -16,8 +16,9 @@ from constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, EN
     CHOSE_SUBSCRIBE_TYPE_MESSAGE, PLEASE_AUTH_MESSAGE
 from db.db_helper import db_helper
 from db.models import User
-from main import command_start, cancel_handler, request_name, Form, request_surname, unsubscribe_all, request_otchestvo, \
+from main import request_name, Form, request_surname, unsubscribe_all, request_otchestvo, \
     request_birthday, check_info, check_info_yes, check_info_no, subscribe_start
+from handlers.commands import command_start, cancel_handler
 from keyboards import main_menu, subscribe_menu, yes_no_menu, subscribe_choice_menu, auth_menu
 from tests.utils import TEST_BOT_ID, TEST_USER_CHAT, TEST_USER_TG, TestUserOk, TestUserBad
 
