@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+from datetime import datetime
 
-from aiogram.types import User, Chat, Message
+from aiogram.types import User, Chat, Message, CallbackQuery, Update
 import time
 
 
@@ -30,6 +31,15 @@ TEST_USER_CHAT = Chat(id=123, type='private', first_name=TEST_USER_TG.first_name
 
 TEST_MESSAGE = Message(message_id=1, date=time.time(), chat=TEST_USER_CHAT, from_user=TEST_USER_TG,
                        text="123")
+
+
+def get_message(text: str):
+    return Message(message_id=123, date=datetime.now(), chat=TEST_USER_CHAT, from_user=TEST_USER_TG,
+                   sender_chat=TEST_USER_CHAT, text=text)
+
+
+def get_update(message: Message = None, call: CallbackQuery = None):
+    return Update(update_id=123, message=message if message else None, callback_query=call if call else None)
 
 # message_id: int
 # """Unique message identifier inside this chat"""

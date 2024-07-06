@@ -55,7 +55,7 @@ class Form(StatesGroup):
 
 # Стартовое меню
 @form_router.message(Command("start"))
-async def command_start(message: Message) -> Any:
+async def command_start(message: Message) -> Message:
     return await message.answer(
         START_MESSAGE,
         reply_markup=main_menu()
