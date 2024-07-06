@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     Message,
@@ -12,36 +11,19 @@ from aiogram.types import (
 )
 
 from handlers import register_user_commands, bot_commands
-from config import TG_BOT_TOKEN
-from constants import SUBSCRIBE_OFFER, SURNAME_INVALID_MESSAGE, \
-    TASK_INTERVAL_MINUTES, ENTER_BIRTHDAY_MESSAGE, ENTER_NAME_MESSAGE, YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, \
-    YOU_UNSUBSCRIBED_MESSAGE, ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
-    CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE, REPEAT_AUTHORIZATION_MESSAGE, CHOSE_SUBSCRIBE_TYPE_MESSAGE, \
+from config import TG_BOT_TOKEN, Form
+from constants import TASK_INTERVAL_MINUTES, YOU_UNSUBSCRIBED_MESSAGE, \
+    CHOSE_SUBSCRIBE_TYPE_MESSAGE, \
     PLEASE_AUTH_MESSAGE
-from crud import create_user, get_users_by_filters, create_subscriber, subscribe_all, \
+from crud import get_users_by_filters, create_subscriber, subscribe_all, \
     subscribe_one_user, delete_all_subscriptions
 from dependencies import UserCheckMiddleware, UserCheckRequired
 from init_global_shedular import global_scheduler
-from keyboards import yes_no_menu, auth_menu, subscribe_menu, subscribe_choice_menu
+from keyboards import yes_no_menu, auth_menu, subscribe_choice_menu
 from logger_global import logger
 from mail import make_periodical_tasks, set_bot_instance
-from validators import is_valid_date
-
-
 
 form_router = Router()
-
-
-class Form(StatesGroup):
-    surname = State()
-    name = State()
-    otchestvo = State()
-    birthday = State()
-    check_info = State()
-    surname_subscribe = State()
-    name_subscribe = State()
-    otchestvo_subscribe = State()
-    subscribe_finish = State()
 
 
 # Отписаться от всех
@@ -52,134 +34,6 @@ async def unsubscribe_all(message: Message) -> None:
 
     await message.answer(
         YOU_UNSUBSCRIBED_MESSAGE,
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
-
-# Запрос фамилии
-@form_router.message(F.text.casefold() == "авторизоваться", UserCheckRequired())
-async def request_surname(message: Message, state: FSMContext, user_db: bool = False) -> None:
-    await message.delete()
-
-    if user_db:
-        await message.answer(
-            YOU_ALREADY_AUTH_MESSAGE,
-            reply_markup=subscribe_menu()
-        )
-    else:
-        await state.set_state(Form.surname)
-
-        await message.answer(
-            ENTER_SURNAME_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-
-# Запрос имени
-@form_router.message(Form.surname)
-async def request_name(message: Message, state: FSMContext) -> None:
-    if len(message.text) > 1:
-        await state.set_state(Form.name)
-        await state.update_data(surname=message.text)
-        await message.answer(
-            ENTER_NAME_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-    else:
-        await message.answer(
-            SURNAME_INVALID_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-
-# Запрос отчества
-@form_router.message(Form.name)
-async def request_otchestvo(message: Message, state: FSMContext) -> None:
-    if len(message.text) > 1:
-        await state.set_state(Form.otchestvo)
-        await state.update_data(name=message.text)
-        await message.answer(
-            ENTER_OTCHESTVO_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-    else:
-        await message.answer(
-            NAME_INVALID_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-
-# Запрос дня рождения
-@form_router.message(Form.otchestvo)
-async def request_birthday(message: Message, state: FSMContext) -> None:
-    if len(message.text) > 1:
-        await state.set_state(Form.birthday)
-        await state.update_data(otchestvo=message.text)
-        await message.answer(
-            ENTER_BIRTHDAY_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-    else:
-        await message.answer(
-            OTCHESTVO_INVALID_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-
-# Проверка введённой информации
-@form_router.message(Form.birthday)
-async def check_info(message: Message, state: FSMContext) -> None:
-    date_is_valid = is_valid_date(message.text)
-
-    if date_is_valid:
-        await state.set_state(Form.check_info)
-        await state.update_data(birthday=message.text)
-
-        data = await state.get_data()
-        surname = data["surname"]
-        name = data["name"]
-        otchestvo = data["otchestvo"]
-        birthday = data["birthday"]
-        answer = f"ФИО: {surname} {name} {otchestvo}\nДата рождения: {birthday}"
-
-        await message.reply(
-            f"{CHECK_ENTERED_INFO_MESSAGE}\n{answer}",
-            reply_markup=yes_no_menu(),
-        )
-    else:
-        await message.answer(
-            BIRTHDAY_INVALID_MESSAGE,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-
-# Регистрация юзера после проверки инфы
-@form_router.message(Form.check_info, F.text.casefold() == "да")
-async def check_info_yes(message: Message, state: FSMContext) -> None:
-    await message.delete()
-
-    user_info = await state.get_data()
-
-    user_info["id_telegram"] = message.from_user.id
-    user_info["username_telegram"] = message.from_user.username
-
-    # Запрос на занесение юзера в БД
-    await create_user(user_info)
-
-    await state.clear()
-    await message.answer(
-        SUBSCRIBE_OFFER,
-        reply_markup=subscribe_menu(),
-    )
-
-
-# Возврат к первому шагу заполнения инфы, в следствие НЕ верных данных
-@form_router.message(Form.check_info, F.text.casefold() == "нет")
-async def check_info_no(message: Message, state: FSMContext) -> None:
-    await state.set_state(Form.surname)
-
-    await message.answer(
-        REPEAT_AUTHORIZATION_MESSAGE,
         reply_markup=ReplyKeyboardRemove(),
     )
 

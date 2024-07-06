@@ -1,8 +1,6 @@
 from contextlib import suppress
 from typing import Any
 
-from aiogram import F
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
