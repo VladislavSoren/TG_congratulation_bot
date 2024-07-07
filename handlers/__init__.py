@@ -3,8 +3,8 @@ __all__ = ['commands']
 from aiogram import Router, F
 from aiogram.filters import Command
 
-from config import Form
-from dependencies import UserCheckRequired
+from utils.fsm_groups import Form
+from utils.dependencies import UserCheckRequired
 from handlers.auth import request_surname, request_name, request_otchestvo, request_birthday, check_info, \
     check_info_yes, check_info_no
 from handlers.commands import command_start, cancel_handler

@@ -4,8 +4,8 @@ from typing import Any
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
-from constants import START_MESSAGE, CANCEL_MESSAGE
-from keyboards import main_menu
+from utils.constants import START_MESSAGE, CANCEL_MESSAGE
+from utils.keyboards import main_menu
 from logger_global import logger
 
 

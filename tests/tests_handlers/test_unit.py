@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove
 from sqlalchemy import text, delete
 
-from constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, ENTER_NAME_MESSAGE, \
+from utils.constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, ENTER_NAME_MESSAGE, \
     YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, YOU_UNSUBSCRIBED_MESSAGE, BIRTHDAY_DATE_FORMAT, \
     ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, ENTER_BIRTHDAY_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
     CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE, SUBSCRIBE_OFFER, REPEAT_AUTHORIZATION_MESSAGE, \
@@ -17,11 +17,11 @@ from constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, EN
 from db.db_helper import db_helper
 from db.models import User
 from handlers.subscribe import unsubscribe_all, subscribe_start
-from config import Form
+from utils.fsm_groups import Form
 from handlers.auth import request_surname, request_name, request_otchestvo, request_birthday, check_info, \
     check_info_yes, check_info_no
 from handlers.commands import command_start, cancel_handler
-from keyboards import main_menu, subscribe_menu, yes_no_menu, subscribe_choice_menu, auth_menu
+from utils.keyboards import main_menu, subscribe_menu, yes_no_menu, subscribe_choice_menu, auth_menu
 from tests.utils import TEST_BOT_ID, TEST_USER_CHAT, TEST_USER_TG, TestUserOk, TestUserBad
 
 

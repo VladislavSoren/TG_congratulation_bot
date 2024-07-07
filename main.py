@@ -10,8 +10,8 @@ from aiogram.types import (
 
 from handlers import register_user_commands, bot_commands
 from config import TG_BOT_TOKEN
-from constants import TASK_INTERVAL_MINUTES
-from dependencies import UserCheckMiddleware
+from utils.constants import TASK_INTERVAL_MINUTES
+from utils.dependencies import UserCheckMiddleware
 from init_global_shedular import global_scheduler
 from logger_global import logger
 from mail import make_periodical_tasks, set_bot_instance

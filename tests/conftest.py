@@ -8,6 +8,8 @@ from handlers.commands import command_start
 from tests.mocked_bot import MockedBot
 from tests.utils import TEST_USER_CHAT, TEST_USER_TG, TEST_BOT_ID
 
+pass
+
 
 @pytest.fixture()
 def bot():

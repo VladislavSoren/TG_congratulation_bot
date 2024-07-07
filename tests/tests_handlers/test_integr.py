@@ -2,8 +2,8 @@ import pytest
 from aiogram import Dispatcher, Bot
 from aiogram.methods import SendMessage
 
-from constants import START_MESSAGE
-from keyboards import main_menu
+from utils.constants import START_MESSAGE
+from utils.keyboards import main_menu
 from tests.utils import get_update, get_message
 
 

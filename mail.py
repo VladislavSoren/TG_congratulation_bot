@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from aiogram import Bot
 
-from constants import BIRTHDAY_DATE_FORMAT, FULL_DATE_FORMAT
+from utils.constants import BIRTHDAY_DATE_FORMAT, FULL_DATE_FORMAT
 from db.crud import get_users_by_filters, get_all_users_subscribers_ids_set, get_user_by_telegram_id
 from init_global_shedular import global_scheduler
 
@@ -43,7 +43,6 @@ async def make_periodical_tasks():
 
 
 async def send_birthday_reminder(user_id):
-
     # Получаем данные о юзере на которого подписаны
     user = await get_user_by_telegram_id(int(user_id))
     text_mess = f'Сегодня у {user.surname} {user.name} {user.otchestvo} ДР!'
@@ -55,4 +54,3 @@ async def send_birthday_reminder(user_id):
     for obj_id in ids_set:
         if int(user_id) != int(obj_id):
             await bot_instance.send_message(chat_id=obj_id, text=text_mess)
-

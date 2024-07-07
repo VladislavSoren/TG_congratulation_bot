@@ -1,10 +1,10 @@
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
-from config import Form
-from constants import YOU_UNSUBSCRIBED_MESSAGE, CHOSE_SUBSCRIBE_TYPE_MESSAGE, PLEASE_AUTH_MESSAGE
+from utils.fsm_groups import Form
+from utils.constants import YOU_UNSUBSCRIBED_MESSAGE, CHOSE_SUBSCRIBE_TYPE_MESSAGE, PLEASE_AUTH_MESSAGE
 from db.crud import delete_all_subscriptions, create_subscriber, subscribe_all, get_users_by_filters, subscribe_one_user
-from keyboards import subscribe_choice_menu, auth_menu, yes_no_menu
+from utils.keyboards import subscribe_choice_menu, auth_menu, yes_no_menu
 
 
 # Отписаться от всех

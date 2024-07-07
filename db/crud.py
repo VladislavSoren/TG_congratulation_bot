@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import text, exc, select, Result, true, extract, delete
 from sqlalchemy.orm import selectinload
 
-from constants import BIRTHDAY_DATE_FORMAT
+from utils.constants import BIRTHDAY_DATE_FORMAT
 from db.db_helper import db_helper
 from db.models import User, Subscriber, UserSubscriber
 

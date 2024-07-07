@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 
-from constants import BIRTHDAY_DATE_FORMAT
+from utils.constants import BIRTHDAY_DATE_FORMAT
 
 
 def is_valid_date(date_str):
