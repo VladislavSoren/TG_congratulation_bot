@@ -4,7 +4,7 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from constants import YOU_ALREADY_AUTH_MESSAGE, ENTER_SURNAME_MESSAGE, ENTER_NAME_MESSAGE, SURNAME_INVALID_MESSAGE, \
     ENTER_OTCHESTVO_MESSAGE, NAME_INVALID_MESSAGE, ENTER_BIRTHDAY_MESSAGE, OTCHESTVO_INVALID_MESSAGE, \
     CHECK_ENTERED_INFO_MESSAGE, BIRTHDAY_INVALID_MESSAGE, SUBSCRIBE_OFFER, REPEAT_AUTHORIZATION_MESSAGE
-from crud import create_user
+from db.crud import create_user
 from keyboards import subscribe_menu, yes_no_menu
 from config import Form
 from validators import is_valid_date

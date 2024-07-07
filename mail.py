@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from aiogram import Bot
 
 from constants import BIRTHDAY_DATE_FORMAT, FULL_DATE_FORMAT
-from crud import get_users_by_filters, get_all_users_subscribers_ids_set, get_user_by_telegram_id
+from db.crud import get_users_by_filters, get_all_users_subscribers_ids_set, get_user_by_telegram_id
 from init_global_shedular import global_scheduler
 
 bot_instance: Bot = None

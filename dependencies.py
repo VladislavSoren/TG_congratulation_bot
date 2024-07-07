@@ -3,7 +3,7 @@ from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from aiogram.filters import BaseFilter
 from aiogram.types import Message
 
-from crud import get_user_by_telegram_id
+from db.crud import get_user_by_telegram_id
 
 
 async def check_user_exists(message: types.Message):

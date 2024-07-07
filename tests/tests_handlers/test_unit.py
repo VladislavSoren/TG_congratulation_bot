@@ -16,7 +16,7 @@ from constants import START_MESSAGE, CANCEL_MESSAGE, SURNAME_INVALID_MESSAGE, EN
     CHOSE_SUBSCRIBE_TYPE_MESSAGE, PLEASE_AUTH_MESSAGE
 from db.db_helper import db_helper
 from db.models import User
-from main import unsubscribe_all, subscribe_start
+from handlers.subscribe import unsubscribe_all, subscribe_start
 from config import Form
 from handlers.auth import request_surname, request_name, request_otchestvo, request_birthday, check_info, \
     check_info_yes, check_info_no
